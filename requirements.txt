@@ -6,4 +6,5 @@ langchain-community
 langchain-groq
 langgraph
 duckduckgo-search
+ddgs
 pydantic
