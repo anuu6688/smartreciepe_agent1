@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+
 from langchain_groq import ChatGroq
 from langchain_core.tools import tool
 from langchain_community.tools import DuckDuckGoSearchRun
@@ -13,8 +14,9 @@ from langgraph.prebuilt import create_react_agent
 # =========================
 
 llm = ChatGroq(
-    model="openai/gpt-oss-120b",
-    temperature=0
+    model="llama-3.1-8b-instant",
+    temperature=0,
+    max_tokens=512
 )
 
 search = DuckDuckGoSearchRun()
@@ -27,10 +29,14 @@ search = DuckDuckGoSearchRun()
 @tool
 def recipe_search(dish: str) -> str:
     """Search web for recipe ingredients and cooking instructions."""
+
     try:
-        return search.invoke(
+        result = search.invoke(
             f"{dish} recipe ingredients cooking instructions"
-        )[:4000]
+        )
+
+        return result[:4000]
+
     except Exception as e:
         return f"Recipe search failed: {str(e)}"
 
@@ -44,6 +50,7 @@ def grocery_list(dish: str, servings: int) -> str:
     """Calculate ingredient quantities for a dish and servings."""
 
     recipes = {
+
         "chicken biryani": {
             "chicken": 1.0,
             "basmati rice": 0.75,
@@ -100,6 +107,7 @@ def grocery_list(dish: str, servings: int) -> str:
     ]
 
     for item, qty in recipes[dish_key].items():
+
         scaled = qty * mult
 
         if "masala" in item or "spices" in item:
@@ -162,12 +170,21 @@ agent = create_react_agent(
     tools=tools,
     prompt=(
         "You are SmartRecipe Agent. "
-        "Coordinate recipes, grocery lists, and costs accurately. "
-        "Use recipe_search for recipes and cooking instructions. "
-        "Use grocery_list for ingredient quantities. "
-        "Use cost_calculator for estimated costs. "
-        "If the user asks for all three, use all three tools "
-        "and organize the final answer clearly."
+        "Answer the user's actual request directly. "
+
+        "Use recipe_search when the user asks for "
+        "recipe instructions or recipe information. "
+
+        "Use grocery_list when the user asks for "
+        "ingredients or grocery quantities. "
+
+        "Use cost_calculator when the user asks for "
+        "the approximate cost or budget. "
+
+        "If the user asks for multiple things, use the "
+        "required tools and organize the final answer clearly. "
+
+        "Do not perform unnecessary tool calls."
     )
 )
 
@@ -369,14 +386,22 @@ def home():
 @app.post("/chat")
 def chat(req: ChatRequest):
 
-    result = agent.invoke(
-        {
-            "messages": [
-                ("user", req.message)
-            ]
-        }
-    )
+    try:
 
-    return {
-        "response": result["messages"][-1].content
-    }
+        result = agent.invoke(
+            {
+                "messages": [
+                    ("user", req.message)
+                ]
+            }
+        )
+
+        return {
+            "response": result["messages"][-1].content
+        }
+
+    except Exception as e:
+
+        return {
+            "detail": f"Agent error: {str(e)}"
+        }
